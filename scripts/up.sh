@@ -23,27 +23,45 @@
 # Plus any one-shot sidecars run via `docker compose up <svc>` (no -d) so they
 # stream logs and block until exit.
 #
+# On first boot, if `.env` is absent the script materializes one from
+# `.env.example` and fills every `CHANGEME` slot with an independent URL-safe
+# 32-char random string. An existing `.env` is never touched — operator
+# customization always wins. To regenerate, delete `.env` first.
+#
 # Assumptions:
 #   - Docker Compose v2 is on PATH (the `docker compose` subcommand form).
 #     Compose v1 (`docker-compose`) is not supported.
-#   - The operator runs this script from the repository root (it uses relative
-#     `./data/...` paths for the pre-flight chown).
-#   - The operator either has passwordless sudo or accepts being prompted once
-#     for their sudo password during the pre-flight chown step. The chown is
-#     required because SeaweedFS and Redpanda bind-mount state directories that
-#     must be owned by their container-internal UIDs; without it the services
-#     fail their first boot with permission-denied errors.
+#   - The operator runs this script from the repository root.
 #   - COMPOSE_PROJECT_NAME defaults to `atmosphere` (pinned in .env); the script
 #     honors an override if one is set in the environment.
 #
 # Exit codes:
 #   0  — every tier came up healthy
-#   1  — pre-flight chown failed (likely sudo issue; see printed hint)
+#   1  — pre-flight failed (missing docker compose v2, or .env generation error)
 #   2  — a tier failed to become healthy within its timeout (logs dumped)
 #   other — propagated from `docker compose` itself
 # ==============================================================================
 
 set -euo pipefail
+
+# ------------------------------------------------------------------------------
+# Env preflight: materialize .env on first boot if absent.
+# - If .env exists, do nothing (operator customization wins).
+# - If .env is absent, copy .env.example and replace every CHANGEME
+#   with an independent URL-safe 32-char random string. Note that
+#   GHPAGES_PAT and GHPAGES_COMMIT_AUTHOR_EMAIL also get random values;
+#   operator replaces those with real values before M11 when GitHub
+#   Pages publishing goes live.
+# - Never overwrite an existing .env. To regenerate, delete .env first.
+# ------------------------------------------------------------------------------
+if [ ! -f .env ]; then
+  cp .env.example .env
+  while grep -q '=CHANGEME$' .env; do
+    rand=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
+    sed -i "0,/=CHANGEME$/ s//=${rand}/" .env
+  done
+  printf '[up.sh] Generated .env from .env.example with random secrets. Edit .env to customize (e.g., GHPAGES_PAT for M11).\n'
+fi
 
 # ------------------------------------------------------------------------------
 # Config
@@ -145,29 +163,6 @@ preflight() {
   log "Pre-flight: checking docker compose availability"
   if ! docker compose version >/dev/null 2>&1; then
     fail "\`docker compose\` (v2) not available. Install Docker Compose v2."
-    exit 1
-  fi
-
-  log "Pre-flight: preparing bind-mount directories with container-expected UIDs"
-
-  # SeaweedFS container runs as UID 1000 (user `seaweed`). Redpanda runs as
-  # UID 101. Postgres uses a docker-managed named volume (no bind mount, no
-  # chown). Creating the host-side directories first — and chowning them —
-  # avoids the root-owned-by-default first-boot failure where `weed server`
-  # can't write `/data/master` and `redpanda` can't write its segments.
-  mkdir -p data/seaweedfs data/redpanda
-
-  # chown requires root; `sudo` will no-op if the UIDs already match (common on
-  # re-runs), prompt once if passwordless sudo isn't configured, or fail with a
-  # clear hint if sudo isn't available at all.
-  if ! sudo chown -R 1000:1000 data/seaweedfs; then
-    fail "Failed to chown data/seaweedfs to 1000:1000."
-    fail "Fix: run \`sudo chown -R 1000:1000 data/seaweedfs\` manually, then rerun this script."
-    exit 1
-  fi
-  if ! sudo chown -R 101:101 data/redpanda; then
-    fail "Failed to chown data/redpanda to 101:101."
-    fail "Fix: run \`sudo chown -R 101:101 data/redpanda\` manually, then rerun this script."
     exit 1
   fi
 
