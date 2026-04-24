@@ -1,0 +1,11 @@
+# Redpanda cluster-property bootstrap seed (M1, JDL-66).
+# Read ONCE at first boot before the broker accepts writes; later edits to this
+# file are silently ignored. Node-level settings do not belong here — those
+# ride on the broker's compose `command:` block. See
+# .claude/context/components/redpanda.md (§Retention) for the platform-wide
+# storage-floor rationale.
+
+# 2 GiB (2 * 1024^3) — aggressive-retention floor on the data volume, acting
+# as a second-line defense against per-topic retention drift or burst beyond
+# the modeled 50 GB Redpanda volume envelope.
+storage_min_free_bytes: 2147483648
