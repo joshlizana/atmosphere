@@ -125,7 +125,22 @@ services:
   # once at first-boot — later edits to that file are silently ignored.
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v26.1.6
+    # rpk's startup rewrites `/etc/redpanda/redpanda.yaml` via a
+    # create-temp → chown → rename dance, which fails on a read-only bind
+    # mount (`operation not permitted` on the chown) and crash-loops the
+    # container. Mount the source file at a non-default path and copy it
+    # into the rpk-default path at start so rpk operates on a writable
+    # copy while the source on the host stays pristine. `--` after `-c`
+    # is a shell convention: it becomes `$0`, so `$@` starts at the first
+    # word of `command:` (`rpk`) and `exec "$@"` runs the full command
+    # line with every flag preserved.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - cp /run/config/redpanda.yaml /etc/redpanda/redpanda.yaml && exec "$@"
+      - --
     command:
+      - rpk
       - redpanda
       - start
       - --smp=1
@@ -142,7 +157,7 @@ services:
     volumes:
       - atmosphere_redpanda:/var/lib/redpanda/data
       - ./config/redpanda/.bootstrap.yaml:/etc/redpanda/.bootstrap.yaml:ro
-      - ./config/redpanda/redpanda.yaml:/etc/redpanda/redpanda.yaml:ro
+      - ./config/redpanda/redpanda.yaml:/run/config/redpanda.yaml:ro
     ports:
       - "9092:9092" # Kafka
       - "9644:9644" # admin
