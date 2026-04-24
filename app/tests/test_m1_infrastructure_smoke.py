@@ -578,7 +578,8 @@ def test_19_create_persistence_markers():
 
 def test_20_restart_all_three_and_rewait_healthy():
     """`docker compose restart postgres seaweedfs redpanda` then wait for
-    every one to come back healthy."""
+    every one to come back healthy AND for SeaweedFS `weed shell` gRPC to
+    accept dials."""
     cp = run(
         ["docker", "compose", "restart", "postgres", "seaweedfs", "redpanda"],
         timeout=180,
@@ -589,6 +590,40 @@ def test_20_restart_all_three_and_rewait_healthy():
     final = wait_for_healthy(EXPECTED_HEALTHY, timeout=240)
     unhealthy = {c: s for c, s in final.items() if s != "healthy"}
     assert not unhealthy, f"services unhealthy after restart: {unhealthy}"
+
+    # Post-healthy gRPC-readiness wait for SeaweedFS. The docker healthcheck
+    # probes HTTP /cluster/healthz on port 9333, which returns 200 before the
+    # gRPC server is accepting weed-shell dials. Close the gap by retrying a
+    # minimal weed-shell command until it exits 0, with a bounded timeout.
+    deadline = time.monotonic() + 30
+    last_stderr = ""
+    while time.monotonic() < deadline:
+        sw = subprocess.run(
+            [
+                "docker",
+                "compose",
+                "exec",
+                "-T",
+                "seaweedfs",
+                "weed",
+                "shell",
+                "-master=localhost:9333",
+            ],
+            cwd=REPO_ROOT,
+            input="s3.bucket.list\n",
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if sw.returncode == 0:
+            break
+        last_stderr = sw.stderr
+        time.sleep(2)
+    else:
+        raise AssertionError(
+            "seaweedfs weed shell did not become gRPC-ready within 30s after restart:\n"
+            + last_stderr
+        )
 
 
 def test_21_markers_survive_restart():
