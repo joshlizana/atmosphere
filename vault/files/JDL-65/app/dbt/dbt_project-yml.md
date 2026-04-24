@@ -23,3 +23,15 @@ Intentionally absent: the `models:`, `seeds:`, `snapshots:`, `tests:`, `sources:
 Gotchas surfaced during the create invocation: Forge's pre-existing memory warned that `Write` against `/home/josh/atmosphere/app/...` at M0 required a prior `mkdir -p` because the `app/` tree does not yet exist — that memory was empirically stale. `Write` created the `app/dbt/` parent directory inline on this invocation, and Forge corrected the memory file `gotcha_app_directory_m0.md` in place rather than leaving the stale guidance to cause future invocations to run unnecessary `mkdir` prep. ^p004
 
 Known follow-up out of scope for this invocation: `app/dbt/profiles/profiles.yml` (referenced by this file via `profile: 'atmosphere'`) does not yet exist. A CI `dbt parse` run cannot succeed until that profile file lands alongside this one; that's a separate forthcoming create invocation. ^p005
+
+## 2026-04-24T09:03Z — addendum
+- agent: log/01KPZBMGW1X2H4Q5V7N8C0D1E2
+- refs: [[files/JDL-65/prettierignore]], [[files/JDL-65/app/dbt/profiles/profiles-yml]]
+
+Forge ran `prettier@3.8.3 --write` against `/home/josh/atmosphere/app/dbt/dbt_project.yml` as part of JDL-65 M0 Prettier-gate remediation and committed the result as `60a0202` on branch `JDL-65-m0-repo-ci-host-prep`, scoped to the single file via an explicit `-- app/dbt/dbt_project.yml` pathspec on the commit. ^p006
+
+The change is a pure quote-style normalization — 13 single-quoted YAML string values flipped to double quotes to match Prettier's default `singleQuote: false` for YAML: `name`, `version`, `profile`, `require-dbt-version`, the six `*-paths` arrays (`model-paths`, `seed-paths`, `test-paths`, `analysis-paths`, `macro-paths`, `snapshot-paths`), `target-path`, and the two `clean-targets` array entries. The diff is 13 insertions / 13 deletions on one-for-one lines; no key names, values, structure, or comments changed. ^p007
+
+Verification evidence Forge captured: `prettier@3.8.3 --write` exited 0, and a follow-up `prettier@3.8.3 --check app/dbt/dbt_project.yml` reports "All matched files use Prettier code style!" — the file now satisfies the CI Prettier gate defined alongside the `.prettierignore` scope decisions. Semantic invariance was confirmed by `git diff` review showing only quote-character deltas; `dbt parse` was not executed because the workflow rules prohibit running tests and `dbt parse` is a CI-side validation concern rather than a pre-commit step for this invocation. ^p008
+
+Gotcha context for the commit: the working tree carried unrelated pre-existing changes from parallel agents (`.gitignore` modifications, deleted vault research files, untracked `.probe-logs/` and `app/dbt/profiles/.user.yml`). Forge used a pathspec-scoped commit (`git commit -- app/dbt/dbt_project.yml`) to avoid pulling those into the Prettier fix, per the parallel-agent-staging pattern already captured in Forge's memory. No new gotchas surfaced. ^p009
