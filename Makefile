@@ -5,9 +5,9 @@
 
 .PHONY: up down nuke
 
-## up: Bring the platform up tier-by-tier with health-gating (delegates to scripts/up.sh).
+## up: Pre-flight + first-boot init (init.sh), then tier-by-tier service bring-up with health-gating (up.sh).
 up:
-	./scripts/up.sh
+	./scripts/init.sh && ./scripts/up.sh
 
 ## down: Stop services and remove containers; volumes and .env persist (reversible with `make up`).
 down:
