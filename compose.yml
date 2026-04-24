@@ -83,7 +83,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget --spider -q http://localhost:9333/cluster/status || exit 1",
+          "wget -q -O /dev/null http://127.0.0.1:9333/cluster/healthz || exit 1",
         ]
       interval: 10s
       timeout: 5s
@@ -139,7 +139,8 @@ services:
       - --rpc-addr=redpanda:33145
       - --advertise-rpc-addr=redpanda:33145
       - --seeds=redpanda:33145
-      - --admin-addr=0.0.0.0:9644
+      - --set=redpanda.admin[0].address=0.0.0.0
+      - --set=redpanda.admin[0].port=9644
     volumes:
       - atmosphere_redpanda:/var/lib/redpanda/data
       - ./config/redpanda/.bootstrap.yaml:/etc/redpanda/.bootstrap.yaml:ro
