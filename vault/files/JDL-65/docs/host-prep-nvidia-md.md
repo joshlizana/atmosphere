@@ -1,0 +1,25 @@
+---
+id: 01KPZC9Z5VY9ZW8XD8YSTZ9DQM
+type: file
+name: host-prep-nvidia.md
+created_at: 2026-04-24T09:10Z
+created_by: log/01KPZC9Z5VY9ZW8XD8YSTZ9DQM
+component: repo
+---
+
+## Purpose
+Tracks the lifecycle of `docs/host-prep-nvidia.md` — the operator guide for installing the NVIDIA Container Toolkit on the CachyOS host and verifying GPU passthrough into Docker. Prerequisite-only scope (assumes a working host NVIDIA driver), uses `pacman -S --needed nvidia-container-toolkit` as the single install path, and documents the Atmosphere compose GPU-reservation syntax as a forward-looking reference. The file satisfies the M0 acceptance gate that `docker run --rm --gpus all nvidia/cuda:12.9.0-base-ubuntu22.04 nvidia-smi` succeeds on the host.
+
+## 2026-04-24T09:10Z — initial
+- agent: log/01KPZC9Z5VY9ZW8XD8YSTZ9DQM
+- refs: [[research/JDL-65/nvidia-container-toolkit-cachyos]], [[research/JDL-65/compose-gpu-syntax-cuda-base-image-2026]], [[decisions/JDL-65/20260424T0853Z-cuda-base-image-tag-bump]]
+
+Forge created `docs/host-prep-nvidia.md` as part of JDL-65 M0 host-prep scaffolding and committed it as `d4d7f57` on branch `JDL-65-m0-repo-ci-host-prep` with a single-file diff of +191 lines. The doc is structured as six sections in the order specified by the invocation Design: Prerequisites, Install, Verify, CachyOS-specific notes, Troubleshooting, and a forward-looking Compose-level GPU syntax section. The file lives outside the vault tree (under `docs/`) and is operator-facing rather than agent-facing. ^p001
+
+The Prerequisites section establishes three preconditions before any toolkit install: a working host NVIDIA driver (verified by `nvidia-smi` on the bare host, not inside a container), rootful Docker (the rootless remediation path is explicitly out of scope for Atmosphere), and the default CachyOS mirrorlist. The Install section lists four commands in sequence — each in its own fenced block for copy-paste clarity — and documents the `daemon.json` shape required to register the `nvidia` runtime with Docker. The doc carries an explicit warning against setting `default-runtime: nvidia`: every service in the Atmosphere compose topology except Oracle runs without GPU, and making NVIDIA the default runtime would inject unnecessary device-request overhead and change resource semantics for every container on the host. ^p002
+
+The Verify section uses `nvidia/cuda:12.9.0-base-ubuntu22.04` — the tag bump captured in [[decisions/JDL-65/20260424T0853Z-cuda-base-image-tag-bump]] — rather than the design-doc-era `nvidia/cuda:12.2-base`. The smoke test is a single `docker run --rm --gpus all …` invocation with an expected-output shape showing the driver version, CUDA version, and a `GPU 0` row. The CachyOS-specific notes section covers four sub-points distilled from [[research/JDL-65/nvidia-container-toolkit-cachyos]]: the DKMS-alignment window on kernel upgrades, driver-flavor agnosticism across CachyOS's `nvidia`, `nvidia-open`, and `nvidia-dkms` packages, the `nvidia-uvm` modprobe chain that must be present before the first container run, and the cgroup-v2 state as a non-issue on rootful Docker. The rootless `no-cgroups = true` workaround is noted only as "not relevant to Atmosphere." ^p003
+
+The Troubleshooting section is a six-row matrix: five rows lifted directly from the `^p029` matrix in the toolkit research note, plus one additional row Forge added for the driver-version-mismatch case (host driver older than the CUDA runtime the container image ships with, which surfaces as an `CUDA driver version is insufficient` error from `nvidia-smi` inside the container). The final Compose-level GPU syntax section is forward-looking: it shows the `deploy.resources.reservations.devices` pattern that Oracle's service block will use at M7, reproduces the full Oracle snippet from [[research/JDL-65/compose-gpu-syntax-cuda-base-image-2026]], and carries two explicit "do not" callouts — no top-level `runtime: nvidia` on the service, and no `default-runtime: nvidia` on the daemon. No file-level compose wiring lands in this doc; the syntax block is reference material only. ^p004
+
+Forge noted that the citation link from the doc back to the research note uses a relative path `../vault/research/JDL-65/...` because the doc sits at `docs/` and the research note lives under `vault/research/JDL-65/` — this matches how operator-facing docs in the project refer back to vault material. No pre-existing files were staged by parallel agents at commit time (verified via `git diff --cached --name-only` before the commit), so the parallel-agent-staged-index-pollution gotcha from MEMORY.md did not apply this run. No operational surprises surfaced; Forge explicitly flagged that no MEMORY.md update was warranted. ^p005
