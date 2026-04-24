@@ -72,7 +72,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${SEAWEEDFS_S3_SECRET_KEY}
       WEED_CLUSTER_DEFAULT_REPLICATION: "000"
     volumes:
-      - ./data/seaweedfs:/data
+      - atmosphere_seaweedfs:/data
     ports:
       - "9333:9333" # master HTTP
       - "8080:8080" # volume HTTP
@@ -141,7 +141,7 @@ services:
       - --seeds=redpanda:33145
       - --admin-addr=0.0.0.0:9644
     volumes:
-      - ./data/redpanda:/var/lib/redpanda/data
+      - atmosphere_redpanda:/var/lib/redpanda/data
       - ./config/redpanda/.bootstrap.yaml:/etc/redpanda/.bootstrap.yaml:ro
     ports:
       - "9092:9092" # Kafka
@@ -160,11 +160,19 @@ services:
     restart: unless-stopped
 
 volumes:
-  # Docker-managed named volume for Postgres. The explicit `name:` pins
-  # the on-disk volume to the literal `atmosphere_postgres` regardless of
-  # the current `COMPOSE_PROJECT_NAME` — matches the operator-facing
-  # references in .claude/context/operations.md §Volumes and storage
-  # (`docker volume ls --filter name=atmosphere_`). No driver options:
-  # the docker default keeps the 0700 mode Postgres requires.
+  # Docker-managed named volumes for every stateful M1 service. Uniform
+  # persistence mode: no host bind mounts for state, so operators have one
+  # backup/enumeration surface (`docker volume ls --filter name=atmosphere_`)
+  # matching the references in .claude/context/operations.md §Volumes and
+  # storage. The explicit `name:` override on each entry pins the on-disk
+  # volume to the literal `atmosphere_<service>` regardless of the current
+  # `COMPOSE_PROJECT_NAME` — without it, Compose would prefix the key and
+  # materialize `atmosphere_atmosphere_<service>`. No driver options: the
+  # docker default keeps Postgres's required 0700 data-dir mode and works
+  # equivalently for SeaweedFS and Redpanda.
   atmosphere_postgres:
     name: atmosphere_postgres
+  atmosphere_seaweedfs:
+    name: atmosphere_seaweedfs
+  atmosphere_redpanda:
+    name: atmosphere_redpanda
