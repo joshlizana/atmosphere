@@ -40,8 +40,12 @@ _site/
 # Compose runtime state (./data/<service>/ bind mounts)
 data/
 
-# Obsidian local workspace state
-vault/.obsidian/
+# Obsidian vault — authored through Obsidian; its Markdown conventions
+# (table cell padding, @-reference line spacing, ^pNNN block-id anchors,
+# ![[wikilink]] embeds) do not match Prettier's canonical output. Exclude
+# the whole tree so Prettier never fights Obsidian on save. Still tracked
+# in git — this is a Prettier-scope exclusion only.
+vault/
 
 # Claude agent local state
 .claude/
