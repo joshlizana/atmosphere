@@ -139,11 +139,10 @@ services:
       - --rpc-addr=redpanda:33145
       - --advertise-rpc-addr=redpanda:33145
       - --seeds=redpanda:33145
-      - --set=redpanda.admin[0].address=0.0.0.0
-      - --set=redpanda.admin[0].port=9644
     volumes:
       - atmosphere_redpanda:/var/lib/redpanda/data
       - ./config/redpanda/.bootstrap.yaml:/etc/redpanda/.bootstrap.yaml:ro
+      - ./config/redpanda/redpanda.yaml:/etc/redpanda/redpanda.yaml:ro
     ports:
       - "9092:9092" # Kafka
       - "9644:9644" # admin
