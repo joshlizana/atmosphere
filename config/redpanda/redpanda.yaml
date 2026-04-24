@@ -1,0 +1,10 @@
+# Redpanda node-level config (M1, JDL-66).
+# Sole purpose: bind the admin API listener on 0.0.0.0:9644 so the host port
+# map at 9644:9644 reaches it — `rpk redpanda start` in v26.1.6 refuses this
+# via argv flags (see vault/incidents/JDL-66/20260424T1723Z-rpk-set-flag-not-stripped-by-redpanda-v26.md).
+# Other node-level settings ride on the broker's compose `command:` block;
+# cluster-level seeds live in config/redpanda/.bootstrap.yaml.
+redpanda:
+  admin:
+    - address: 0.0.0.0
+      port: 9644
