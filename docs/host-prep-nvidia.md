@@ -137,13 +137,13 @@ relevant to rootless Docker, which Atmosphere does not use.
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `could not select device driver "" with capabilities: [[gpu]]` | Toolkit not installed, or Docker not restarted after `nvidia-ctk runtime configure` | Re-run the four install commands above in order; verify `/etc/docker/daemon.json` has the `runtimes.nvidia` block. |
-| `Failed to initialize NVML: Unknown Error` on a freshly-booted host | `nvidia-uvm` not yet loaded because nothing has exercised CUDA on the host since boot | Run `nvidia-smi` once on the host to trigger module load, then retry the container. |
-| Same NVML error right after a kernel upgrade | `nvidia-*-dkms` module did not rebuild against the new kernel | `dkms status \| grep nvidia`; if the module is missing or stale, `sudo pacman -Syu` to pull a matching DKMS build and reboot if required. |
-| `docker: Error response from daemon: unknown runtime specified nvidia` | `/etc/docker/daemon.json` is missing the `runtimes.nvidia` block | Re-run `sudo nvidia-ctk runtime configure --runtime=docker`, inspect the file, `sudo systemctl restart docker`. |
-| Driver version inside the container does not match the host | Stale container image cached locally, or host driver updated without a Docker restart | `docker pull nvidia/cuda:12.9.0-base-ubuntu22.04` to refresh, then `sudo systemctl restart docker` and retry. |
+| Symptom                                                                | Likely cause                                                                          | Fix                                                                                                                                       |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `could not select device driver "" with capabilities: [[gpu]]`         | Toolkit not installed, or Docker not restarted after `nvidia-ctk runtime configure`   | Re-run the four install commands above in order; verify `/etc/docker/daemon.json` has the `runtimes.nvidia` block.                        |
+| `Failed to initialize NVML: Unknown Error` on a freshly-booted host    | `nvidia-uvm` not yet loaded because nothing has exercised CUDA on the host since boot | Run `nvidia-smi` once on the host to trigger module load, then retry the container.                                                       |
+| Same NVML error right after a kernel upgrade                           | `nvidia-*-dkms` module did not rebuild against the new kernel                         | `dkms status \| grep nvidia`; if the module is missing or stale, `sudo pacman -Syu` to pull a matching DKMS build and reboot if required. |
+| `docker: Error response from daemon: unknown runtime specified nvidia` | `/etc/docker/daemon.json` is missing the `runtimes.nvidia` block                      | Re-run `sudo nvidia-ctk runtime configure --runtime=docker`, inspect the file, `sudo systemctl restart docker`.                           |
+| Driver version inside the container does not match the host            | Stale container image cached locally, or host driver updated without a Docker restart | `docker pull nvidia/cuda:12.9.0-base-ubuntu22.04` to refresh, then `sudo systemctl restart docker` and retry.                             |
 
 ## Compose-level GPU syntax (forward-looking)
 
@@ -162,7 +162,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 2560M
         reservations:
           devices:
