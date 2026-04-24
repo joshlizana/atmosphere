@@ -1,6 +1,170 @@
 # Atmosphere platform — Docker Compose entry point.
-# Services land progressively from M1 onward; this stub satisfies M0's `docker compose config` gate.
+# Services land progressively from M1 onward; this file holds every service
+# across every milestone in one place. `include:` or profiles would add
+# overhead at roughly eighteen containers, so the design is one file with
+# per-service comments explaining non-obvious choices.
+#
+# M1 (JDL-66): Postgres, SeaweedFS (+ one-shot bucket init), Redpanda.
 
 name: atmosphere
 
-services: {}
+services:
+  # Postgres — shared single-instance backing four logical databases
+  # (lakekeeper, prefect, openmetadata, grafana). Data lives on the
+  # docker-managed `atmosphere_postgres` named volume (bind mounts trip
+  # Postgres's strict 0700 data-dir mode check on many host filesystems).
+  # First-boot init SQL runs via the committed shell script, which is
+  # sourced by the official image's entrypoint so `.env`-injected
+  # passwords interpolate into `CREATE ROLE ... PASSWORD '...'`. `.sql`
+  # init files do NOT get env interpolation from the entrypoint, hence the
+  # `.sh` shape.
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      # Map the official image's expected vars to the superuser pair so
+      # initdb + `pg_isready` behave.
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      # Explicit re-declaration so the init script sees them after sourcing.
+      POSTGRES_SUPERUSER: ${POSTGRES_SUPERUSER}
+      POSTGRES_SUPERUSER_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      POSTGRES_LAKEKEEPER_USER: ${POSTGRES_LAKEKEEPER_USER}
+      POSTGRES_LAKEKEEPER_PASSWORD: ${POSTGRES_LAKEKEEPER_PASSWORD}
+      POSTGRES_PREFECT_USER: ${POSTGRES_PREFECT_USER}
+      POSTGRES_PREFECT_PASSWORD: ${POSTGRES_PREFECT_PASSWORD}
+      POSTGRES_OPENMETADATA_USER: ${POSTGRES_OPENMETADATA_USER}
+      POSTGRES_OPENMETADATA_PASSWORD: ${POSTGRES_OPENMETADATA_PASSWORD}
+      POSTGRES_GRAFANA_USER: ${POSTGRES_GRAFANA_USER}
+      POSTGRES_GRAFANA_PASSWORD: ${POSTGRES_GRAFANA_PASSWORD}
+    volumes:
+      - atmosphere_postgres:/var/lib/postgresql/data
+      - ./config/postgres:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      # CMD-SHELL (not bare CMD) so ${POSTGRES_SUPERUSER} interpolates.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER} -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    mem_reservation: 768m
+    restart: unless-stopped
+
+  # SeaweedFS — master + volume + filer + S3 gateway in one process
+  # (`weed server -s3 -filer`). S3 admin identity is synthesized at
+  # startup from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY via
+  # `loadEnvironmentVariableCredentials`; `-s3.config` is intentionally
+  # omitted (decision: vault/decisions/JDL-66/...seaweedfs-s3-credentials-via-env-vars).
+  # Replication 000 is set twice — the CLI flag is the source of truth,
+  # WEED_CLUSTER_DEFAULT_REPLICATION is defense in depth.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.21
+    command:
+      - server
+      - -dir=/data
+      - -filer
+      - -s3
+      - -master.defaultReplication=000
+      - -metricsPort=9327
+    environment:
+      AWS_ACCESS_KEY_ID: ${SEAWEEDFS_S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${SEAWEEDFS_S3_SECRET_KEY}
+      WEED_CLUSTER_DEFAULT_REPLICATION: "000"
+    volumes:
+      - ./data/seaweedfs:/data
+    ports:
+      - "9333:9333" # master HTTP
+      - "8080:8080" # volume HTTP
+      - "8888:8888" # filer HTTP
+      - "8333:8333" # S3 gateway
+      - "9327:9327" # Prometheus /metrics
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --spider -q http://localhost:9333/cluster/status || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_reservation: 1g
+    restart: unless-stopped
+
+  # SeaweedFS bucket init — one-shot sidecar that creates the three
+  # platform buckets (atmosphere, flink, loki) via `weed shell` against
+  # the master. Idempotent by SeaweedFS design: re-running
+  # `s3.bucket.create` against an existing bucket is a no-op. Talks to
+  # the master over the bridge network only; no data volume needed.
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:4.21
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        printf 's3.bucket.create -name %s\n' \
+          "${SEAWEEDFS_BUCKET_ATMOSPHERE}" \
+          "${SEAWEEDFS_BUCKET_FLINK}" \
+          "${SEAWEEDFS_BUCKET_LOKI}" \
+          | weed shell -master=seaweedfs:9333
+    environment:
+      SEAWEEDFS_BUCKET_ATMOSPHERE: ${SEAWEEDFS_BUCKET_ATMOSPHERE}
+      SEAWEEDFS_BUCKET_FLINK: ${SEAWEEDFS_BUCKET_FLINK}
+      SEAWEEDFS_BUCKET_LOKI: ${SEAWEEDFS_BUCKET_LOKI}
+    restart: "no"
+
+  # Redpanda — single-broker single-node cluster. `--mode dev-container`
+  # is intentionally omitted (it disables fsync — data-loss footgun).
+  # `--schema-registry-addr` and `--pandaproxy-addr` are also omitted;
+  # their absence is what keeps those subsystems disabled (no explicit
+  # "off" flag exists, and port 8081 collides with Flink's JM UI in a
+  # later milestone). The bootstrap YAML seeds `storage_min_free_bytes`
+  # once at first-boot — later edits to that file are silently ignored.
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v26.1.6
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=1536M
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+      - --rpc-addr=redpanda:33145
+      - --advertise-rpc-addr=redpanda:33145
+      - --seeds=redpanda:33145
+      - --admin-addr=0.0.0.0:9644
+    volumes:
+      - ./data/redpanda:/var/lib/redpanda/data
+      - ./config/redpanda/.bootstrap.yaml:/etc/redpanda/.bootstrap.yaml:ro
+    ports:
+      - "9092:9092" # Kafka
+      - "9644:9644" # admin
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sf http://localhost:9644/v1/status/ready || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    mem_reservation: 1.5g
+    restart: unless-stopped
+
+volumes:
+  # Docker-managed named volume for Postgres. The explicit `name:` pins
+  # the on-disk volume to the literal `atmosphere_postgres` regardless of
+  # the current `COMPOSE_PROJECT_NAME` — matches the operator-facing
+  # references in .claude/context/operations.md §Volumes and storage
+  # (`docker volume ls --filter name=atmosphere_`). No driver options:
+  # the docker default keeps the 0700 mode Postgres requires.
+  atmosphere_postgres:
+    name: atmosphere_postgres
