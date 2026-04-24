@@ -1,0 +1,78 @@
+# Atmosphere CI — the sole M0 green-light gate for every pull request and
+# every push to main. Two parallel jobs: a Python job running uv-synced
+# gates (ruff lint, ruff format, pytest, dbt parse) and a Prettier job
+# running Node-provisioned Prettier. No artifact build, no image push — CI
+# is gating-only per the local-build deploy model described in CONTRIBUTING.
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel in-progress runs on new pushes to the same ref. PR updates
+# supersede their predecessors; main pushes supersede prior main pushes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: python (ruff + pytest + dbt parse)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # setup-uv v8 removed floating major / minor tags for supply-chain
+      # reasons (v8.0.0 release notes, 2026-03-29). Only full semver tags
+      # resolve; the canonical pin is SHA plus a trailing version comment.
+      # The uv CLI version is pinned separately via the `version:` input so
+      # a fresh uv release cannot change lockfile resolution mid-PR.
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.7"
+          python-version: "3.12"
+
+      # `--all-packages` is NOT the default in a uv workspace — a bare
+      # `uv sync` installs only the root member. The flag is load-bearing
+      # and must be present from M0 even though `members = []` today, so
+      # later milestones that add workspace members do not have to
+      # retrofit it. `--locked` is the stale-lockfile gate.
+      - name: uv sync (workspace)
+        run: uv sync --locked --all-packages --all-extras --all-groups
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: ruff format --check
+        run: uv run ruff format --check .
+
+      - name: pytest
+        run: uv run pytest
+
+      # `--no-partial-parse` is load-bearing on ephemeral CI runners: the
+      # partial-parse cache adds no value on a cold target/ and has a
+      # history of cache-state bugs (dbt-core#11363, #8872, #11164).
+      - name: dbt parse
+        run: uv run --directory app/dbt dbt parse --profiles-dir ./profiles --no-partial-parse
+
+  prettier:
+    name: prettier --check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # `cache-dependency-path: .github/workflows/ci.yml` uses the
+      # no-package.json pattern: the npm cache key is the hash of this
+      # workflow file itself, so the cache invalidates only when CI
+      # config changes. `npx --yes` suppresses the interactive install
+      # prompt on cache miss.
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: .github/workflows/ci.yml
+
+      - name: prettier --check
+        run: npx --yes prettier@3.8.3 --check .
