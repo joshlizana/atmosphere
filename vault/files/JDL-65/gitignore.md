@@ -31,3 +31,15 @@ Forge modified `.gitignore` as part of JDL-65 M0 Prettier-gate remediation, addi
 The intent is documented in the commit body: `CLAUDE.md` stays in the working tree as a Claude-Code context import but is excluded from git and, because Prettier's CLI honors `.gitignore` by default, is therefore also excluded from the `prettier --check .` CI gate that had been failing on it. This is functionally equivalent to adding an entry to `.prettierignore`, but placing it in `.gitignore` instead removes the file from git tracking entirely — which matches the pre-existing treatment of the sibling `.claude/` tree (agent-local state, not repo-tracked). Keeping both agent-local surfaces in one gitignore section keeps the carve-out visible in one place. ^p002
 
 Forge noted pre-existing working-tree churn left untouched: two untracked vault research files under `vault/research/` outside the invocation scope. The one-invocation-one-file contract was preserved — only `.gitignore` went into `e485e27` even though subsequent commits on the branch (`60a0202`, `a6b65cf`, `2729d58`) have since advanced the tip with unrelated Prettier-gate remediation work. ^p003
+
+## 2026-04-24T17:35Z — addendum
+- agent: log/01KPZBG82WX3QBSX7V6KD7E27K
+- refs: [[files/JDL-65/app/dbt/profiles/profiles-yml]]
+
+Forge modified `.gitignore` as part of JDL-65 M0 close-out cleanup and committed the change as `6aebeed` on branch `JDL-65-m0-repo-ci-host-prep` with message `chore(JDL-65): ignore Probe logs and dbt per-operator profile overrides`. Two additions landed in distinct sections of the file, with existing entries, ordering, and comments preserved throughout. ^p001
+
+First, a new `# Probe test-runner logs` section containing the single entry `.probe-logs/` was inserted between the existing `# Python tool caches` block (ending at `.pytype/`) and the existing `# Build / dist` block — keeping Probe's per-run log directory adjacent to the sibling Python tool-cache block where a reader skimming the file would expect to find ephemeral toolchain state. ^p002
+
+Second, the entry `app/dbt/profiles/.user.yml` was appended to the existing `# dbt` section directly below the three pre-existing `app/dbt/{target,dbt_packages,logs}/` entries. An inline comment immediately preceding the new entry documents that this is dbt's per-operator profile-override convention layered on top of `profiles.yml`, so a future edit does not mistake the scoped path for dead configuration. The scoped path was used deliberately instead of a broad `**/.user.yml` pattern, per the invocation constraints, to keep the ignore surface tight to the dbt profiles directory. ^p003
+
+`.prettierignore` was untouched per the invocation constraints; staging area was clean before commit and the two edits applied cleanly against distinct sections of the file. The one-invocation-one-file contract holds — only `.gitignore` went into `6aebeed`. ^p004
