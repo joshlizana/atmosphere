@@ -106,8 +106,9 @@ generate_env() {
 
   cp .env.example .env
   while grep -q '=CHANGEME$' .env; do
-    local rand
-    rand=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
+    local rand chunk
+    chunk=$(LC_ALL=C tr -dc 'A-Za-z0-9' < <(head -c 256 /dev/urandom))
+    rand="${chunk:0:32}"
     sed -i "0,/=CHANGEME$/ s//=${rand}/" .env
   done
   log "→ Generated .env from .env.example with random secrets (replace GHPAGES_PAT / GHPAGES_COMMIT_AUTHOR_EMAIL before M11)"
