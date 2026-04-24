@@ -1,0 +1,54 @@
+# Prettier ignore — gitignore syntax.
+#
+# Prettier already honors .gitignore and excludes .git / node_modules by
+# default. This file is explicit belt-and-braces so the formatting scope is
+# legible at a glance and survives independently of .gitignore churn.
+#
+# Scope: Prettier formats YAML, Markdown, and JSON in this repo. Python is
+# owned by ruff — Prettier must never touch it.
+
+# Python — ruff owns these; Prettier has no Python formatter but make the
+# boundary explicit.
+*.py
+*.pyi
+
+# Python tool caches and virtualenvs
+__pycache__/
+.venv/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.uv-cache/
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+
+# uv lockfile — machine-generated TOML; committed but must not be reformatted.
+uv.lock
+
+# dbt generated artifacts
+app/dbt/target/
+app/dbt/dbt_packages/
+app/dbt/logs/
+
+# Quarto generated artifacts
+_site/
+.quarto/
+
+# Compose runtime state (./data/<service>/ bind mounts)
+data/
+
+# Obsidian vault — authored through Obsidian; its Markdown conventions
+# (table cell padding, @-reference line spacing, ^pNNN block-id anchors,
+# ![[wikilink]] embeds) do not match Prettier's canonical output. Exclude
+# the whole tree so Prettier never fights Obsidian on save. Still tracked
+# in git — this is a Prettier-scope exclusion only.
+vault/
+
+# Claude agent local state
+.claude/
+
+# OS cruft
+.DS_Store

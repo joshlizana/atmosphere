@@ -1,0 +1,24 @@
+# Atmosphere platform — local pre-commit hooks.
+# Mirrors the Python lint/format gates from .github/workflows/ci.yml so contributors
+# catch ruff failures before pushing. Install locally via `uv run pre-commit install`
+# after a workspace sync (`uv sync --all-packages --all-extras --all-groups`).
+# The CI workflow remains the authoritative gate list.
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict

@@ -1,0 +1,6 @@
+# Atmosphere platform — Docker Compose entry point.
+# Services land progressively from M1 onward; this stub satisfies M0's `docker compose config` gate.
+
+name: atmosphere
+
+services: {}

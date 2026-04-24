@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtualenvs
+.venv/
+venv/
+env/
+ENV/
+
+# uv
+# Note: uv.lock is committed; do not ignore it.
+.uv-cache/
+
+# Python tool caches
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.pyre/
+.pytype/
+
+# Probe test-runner logs
+.probe-logs/
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# dbt
+app/dbt/target/
+app/dbt/dbt_packages/
+app/dbt/logs/
+# Per-operator dbt profile overrides layered on top of profiles.yml (dbt convention).
+app/dbt/profiles/.user.yml
+
+# Quarto
+_site/
+.quarto/
+*_files/
+
+# Compose runtime state (./data/<service>/ bind mounts)
+data/
+
+# Env files
+# Note: .env.example is committed; do not ignore it.
+.env
+.env.local
+
+# Obsidian local state
+vault/.obsidian/
+
+# Claude agent local state
+.claude/
+CLAUDE.md
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Flink local state (real runs write to SeaweedFS via S3A)
+flink-checkpoints/
+flink-savepoints/

@@ -1,0 +1,43 @@
+# Atmosphere dbt project.
+#
+# M0 scaffolding — empty models tree, populated starting in M8. This file
+# declares the project shape so `dbt parse` runs cleanly in CI; real model
+# configuration (materializations, schema targets, incremental strategy) lands
+# with the first models and not before.
+#
+# Model-naming conventions — see .claude/context/conventions.md:
+#   bluesky.dbt.stg_<source>   — thin 1:1 staging on bronze
+#   bluesky.dbt.fct_<event>    — event fact tables
+#   bluesky.dbt.dim_<entity>   — reusable dimensions
+#   bluesky.dbt.mart_<subject> — gold marts
+#
+# Adapter is dbt-duckdb, pinned in pyproject.toml alongside dbt-core.
+
+name: "atmosphere"
+version: "1.0.0"
+config-version: 2
+
+# Profile name is decoupled from project name so the two can evolve
+# independently. The profile itself lives at ./profiles/profiles.yml and is
+# selected via `--profiles-dir ./profiles` in CI.
+profile: "atmosphere"
+
+# Pin the dbt-core minor-version track. Matches the pin in pyproject.toml;
+# dbt minor-version updates have historically broken parse-path behavior, so
+# the project refuses to load under an unintended dbt version rather than
+# silently producing different artifacts.
+require-dbt-version: ">=1.10.0,<1.11.0"
+
+# Path layout — defaults stated explicitly so a future reader does not need
+# to recall dbt's built-in defaults to understand where files live.
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"

@@ -1,0 +1,9 @@
+# CI-safe dbt profile for `dbt parse` — deliberately in-memory DuckDB with no
+# credentials, no disk state, and no external dependencies. Real data-plane
+# connection config (Lakekeeper REST catalog + SeaweedFS S3) will be introduced
+# in M8 when actual models land.
+atmosphere:
+  target: ci
+  outputs:
+    ci:
+      type: duckdb
