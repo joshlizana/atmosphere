@@ -50,6 +50,7 @@ vault/.obsidian/
 
 # Claude agent local state
 .claude/
+CLAUDE.md
 
 # OS cruft
 .DS_Store
