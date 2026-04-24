@@ -55,3 +55,18 @@ Fix 2 — SeaweedFS healthcheck. In the SeaweedFS service's `healthcheck:` block
 Everything else in `compose.yml` preserved verbatim: postgres service, seaweedfs service command / env / volumes / ports / mem_reservation / restart, seaweedfs-init service, top-level `volumes:` block, every other Redpanda flag (`--smp=1`, `--memory=1536M`, `--reserve-memory=0M`, `--overprovisioned`, `--node-id=0`, `--check=false`, `--kafka-addr`, `--advertise-kafka-addr`, `--rpc-addr`, `--advertise-rpc-addr`, `--seeds`). ^p016
 
 Validation. `npx prettier --check compose.yml` passes; `docker compose config --quiet` parses cleanly. This landing is expected to unblock `test_04_make_up_succeeds` and every Redpanda-dependent / SeaweedFS-healthcheck-dependent test on the next smoke Probe run. ^p017
+
+## 2026-04-24T22:00Z — correction
+- agent: log/helm-m1-log-028
+- corrects: [[files/JDL-66/compose-yml#^p014]]
+- refs: [[files/JDL-66/config/redpanda/redpanda-yaml]], [[incidents/JDL-66/20260424T1723Z-rpk-set-flag-not-stripped-by-redpanda-v26]], [[research/JDL-66/redpanda-admin-api-listener-v26]]
+
+Forge modified `compose.yml` at commit `0ef3212` on branch `JDL-66-m1-shared-infrastructure-online`. One file, one insertion, two deletions — all confined to the Redpanda service definition. This entry corrects ^p014 above: the `--set=redpanda.admin[0].address` / `--set=redpanda.admin[0].port` approach landed at commit `d895987` was itself broken and is now being replaced by the canonical `redpanda.yaml` node-config mount. ^p018
+
+Deletions from the Redpanda service `command:` list: `- --set=redpanda.admin[0].address=0.0.0.0` and `- --set=redpanda.admin[0].port=9644`. Empirically verified during the Probe re-run (`ac4532c54ddded668`, killed after the third 25-minute run because the deterministic failure was already clear): the Seastar broker binary in `docker.redpanda.com/redpandadata/redpanda:v26.1.6` rejects at least one of these two `--set` flags as `unrecognised option` when `rpk redpanda start` forwards them unchanged. Full incident at `[[incidents/JDL-66/20260424T1723Z-rpk-set-flag-not-stripped-by-redpanda-v26]]`. ^p019
+
+Insertion into the Redpanda service `volumes:` list, placed adjacent to the existing `.bootstrap.yaml` mount so all read-only Redpanda config mounts form one contiguous block: `- ./config/redpanda/redpanda.yaml:/etc/redpanda/redpanda.yaml:ro`. The mounted file — committed at `2caa6a2` by sibling Forge m1-forge-017 — supplies the admin listener binding via the canonical node-config mechanism the broker reads at startup, replacing the broken argv-flag passthrough approach. ^p020
+
+Everything else in `compose.yml` preserved verbatim: every other Redpanda command-line flag in its current order (`--smp=1`, `--memory=1536M`, `--reserve-memory=0M`, `--overprovisioned`, `--node-id=0`, `--check=false`, `--kafka-addr`, `--advertise-kafka-addr`, `--rpc-addr`, `--advertise-rpc-addr`, `--seeds`); the existing `.bootstrap.yaml` mount; the Redpanda service's image, environment, ports, healthcheck, `mem_reservation`, and restart policy; the postgres service; the seaweedfs service; the seaweedfs-init service; the top-level `volumes:` block. ^p021
+
+Validation. `npx prettier --check compose.yml` clean; `docker compose config --quiet` parses cleanly. This is the third `compose.yml` edit in the M1 branch history — following the initial landing (commit `bb4fc7c`, ^p001-^p007), the named-volume conversion (commit `bee21ab`, ^p008-^p012), and the first Redpanda admin-listener + SeaweedFS healthcheck fix (commit `d895987`, ^p013-^p017) — and it corrects Fix 1 of that third edit. Expected outcome of the next smoke Probe run: Redpanda becomes healthy, cascading failures from `test_04` disappear, all 25 tests pass. ^p022
